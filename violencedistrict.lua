@@ -408,17 +408,20 @@ end
 -- UI CREATION
 -- =====================================================
 
-local Window = Obsidian:Window({
-    Name = "HEXWARE",
-    Size = Vector2.new(580, 460),
-    Keybind = Enum.KeyCode.RightControl,
-    Accent = Color3.fromRGB(125, 85, 255),
+local Window = Obsidian:CreateWindow({
+    Title = "HEXWARE - Violence District",
+    SubTitle = "by hexxer333x",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = false,
+    Theme = "Darker",
+    MinimizeKey = Enum.KeyCode.RightControl
 })
 
 -- ============================================
 -- ВКЛАДКА: MAIN
 -- ============================================
-local MainTab = Window:Tab({
+local MainTab = Window:AddTab({
     Name = "Main",
     Icon = "rbxassetid://7733779610"
 })
@@ -564,7 +567,7 @@ CombatSection:AddSlider("HitboxSize", {
 -- ============================================
 -- ВКЛАДКА: SURVIVOR
 -- ============================================
-local SurvivorTab = Window:Tab({
+local SurvivorTab = Window:AddTab({
     Name = "Survivor",
     Icon = "rbxassetid://7733764083"
 })
@@ -685,7 +688,7 @@ SurvFeatures:AddToggle("AntiKnock", {
 -- ============================================
 -- ВКЛАДКА: KILLER
 -- ============================================
-local KillerTab = Window:Tab({
+local KillerTab = Window:AddTab({
     Name = "Killer",
     Icon = "rbxassetid://7743875962"
 })
@@ -731,7 +734,7 @@ KillerSection:AddToggle("NoSlowdown", {
 -- ============================================
 -- ВКЛАДКА: VISUAL
 -- ============================================
-local VisualTab = Window:Tab({
+local VisualTab = Window:AddTab({
     Name = "Visual",
     Icon = "rbxassetid://7733955511"
 })
@@ -807,7 +810,7 @@ VisualSection:AddToggle("ThirdPerson", {
 -- ============================================
 -- ВКЛАДКА: MISC
 -- ============================================
-local MiscTab = Window:Tab({
+local MiscTab = Window:AddTab({
     Name = "Misc",
     Icon = "rbxassetid://7733964370"
 })
@@ -833,7 +836,7 @@ MiscSection:AddToggle("AntiAFK", {
 -- ============================================
 -- ВКЛАДКА: SETTINGS
 -- ============================================
-local SettingsTab = Window:Tab({
+local SettingsTab = Window:AddTab({
     Name = "Settings",
     Icon = "rbxassetid://7733955511"
 })
