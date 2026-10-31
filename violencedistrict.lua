@@ -4,6 +4,8 @@
 ]]
 
 local Obsidian = loadstring(game:HttpGet("https://raw.githubusercontent.com/hexxer333x/obsidian/main/Library.lua"))()
+local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/hexxer333x/obsidian/main/SaveManager.lua"))()
+local ThemeManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/hexxer333x/obsidian/main/ThemeManager.lua"))()
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -29,6 +31,8 @@ end)
 getgenv().HEX = getgenv().HEX or {
     ESP = {
         Enabled = false,
+        ShowKillers = true,
+        ShowSurvivors = true,
         Players = {
             Killer = {Color = Color3.fromRGB(255, 93, 108)},
             Survivor = {Color = Color3.fromRGB(64, 224, 255)}
@@ -43,9 +47,17 @@ getgenv().HEX = getgenv().HEX or {
     },
     AutoSkillCheck = {
         Enabled = false
+    },
+    Healing = {
+        InstantHealSelf = false,
+        AutoHealAll = false
     }
 }
 local HEX = getgenv().HEX
+
+-- Healing Connections
+local InstantHealConnection = nil
+local AutoHealAllConnection = nil
 
 ----------------------------------------------------------------
 -- ESP SYSTEM
@@ -66,19 +78,16 @@ local function ApplyHighlight(obj, color)
 end
 
 local function GetRole(p)
-    if p.Team and LocalPlayer.Team then
+    if p.Team then
         local teamName = p.Team.Name:lower()
-        local myTeam = LocalPlayer.Team.Name:lower()
-
-        if teamName:find("killer") or teamName:find("murderer") or teamName:find("hunter") or teamName:find("slasher") or teamName:find("beast") then 
+        
+        if teamName:find("killer") then 
             return "Killer" 
-        end
-
-        if myTeam:find("survivor") and teamName ~= myTeam then
-            return "Killer"
+        elseif teamName:find("survivor") then
+            return "Survivor"
         end
     end
-    return "Survivor"
+    return nil
 end
 
 local function SetupPlayerESP(p)
@@ -89,8 +98,14 @@ local function SetupPlayerESP(p)
             local existing = p.Character:FindFirstChild("RxmmyESP")
             if existing then existing:Destroy() end
             task.wait(0.1)
+            
             if HEX.ESP.Enabled then
-                ApplyHighlight(p.Character, HEX.ESP.Players[GetRole(p)].Color)
+                local role = GetRole(p)
+                if role == "Killer" and HEX.ESP.ShowKillers then
+                    ApplyHighlight(p.Character, HEX.ESP.Players.Killer.Color)
+                elseif role == "Survivor" and HEX.ESP.ShowSurvivors then
+                    ApplyHighlight(p.Character, HEX.ESP.Players.Survivor.Color)
+                end
             end
         end
     end
@@ -195,6 +210,135 @@ end
 Players.PlayerAdded:Connect(SetupPlayerESP)
 SetupObjectESP()
 
+----------------------------------------------------------------
+-- HEALING SYSTEM
+----------------------------------------------------------------
+local function doSelfHealTrue()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local healRemote = ReplicatedStorage.Remotes.Healing.HealEvent
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    pcall(function() healRemote:FireServer(hrp, true) end)
+end
+
+local function doSelfHealFalse()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local healRemote = ReplicatedStorage.Remotes.Healing.HealEvent
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    pcall(function() healRemote:FireServer(hrp, false) end)
+end
+
+local function doOthersHealTrue(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return end
+    local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not targetHRP then return end
+    local healRemote = ReplicatedStorage.Remotes.Healing.HealEvent
+    pcall(function() healRemote:FireServer(targetHRP, true) end)
+end
+
+local function doOthersHealFalse(targetPlayer)
+    if not targetPlayer or not targetPlayer.Character then return end
+    local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not targetHRP then return end
+    local healRemote = ReplicatedStorage.Remotes.Healing.HealEvent
+    pcall(function() healRemote:FireServer(targetHRP, false) end)
+end
+
+local function setInstantHealSelf(v)
+    HEX.Healing.InstantHealSelf = v
+    
+    if v then
+        local healActive = false
+        if InstantHealConnection then InstantHealConnection:Disconnect() end
+        InstantHealConnection = RunService.Heartbeat:Connect(function()
+            if not HEX.Healing.InstantHealSelf then return end
+            
+            local myChar = LocalPlayer.Character
+            local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+            if not myHum then return end
+            
+            if myHum.Health >= myHum.MaxHealth * 0.9 then 
+                -- Auto stop heal when HP is full
+                if healActive then
+                    healActive = false
+                    doSelfHealFalse()
+                end
+                return 
+            end
+            
+            -- Check if game cancelled our heal (e.g. player moved)
+            if healActive then
+                local checkScript = myChar:FindFirstChild("CheckInterractable")
+                if checkScript and not checkScript:GetAttribute("isHealing") then
+                    -- Game cancelled our heal, reset so we can restart
+                    healActive = false
+                end
+            end
+            
+            -- Start heal (or restart after being cancelled)
+            if not healActive then
+                healActive = true
+                doSelfHealTrue()
+            end
+        end)
+    else
+        if InstantHealConnection then InstantHealConnection:Disconnect(); InstantHealConnection = nil end
+        -- Send stop heal just in case
+        pcall(doSelfHealFalse)
+    end
+end
+
+local function setAutoHealAll(v)
+    HEX.Healing.AutoHealAll = v
+    
+    if v then
+        local activeHeals = {} -- [player] = true if we're currently healing them
+        if AutoHealAllConnection then AutoHealAllConnection:Disconnect() end
+        AutoHealAllConnection = RunService.Heartbeat:Connect(function()
+            if not HEX.Healing.AutoHealAll then return end
+            
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+                    local hum = player.Character:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 and hum.Health < hum.MaxHealth * 0.9 and hrp then
+                        -- Check if game cancelled our heal on this player (e.g. we or they moved)
+                        if activeHeals[player] then
+                            local myChar = LocalPlayer.Character
+                            local checkScript = myChar and myChar:FindFirstChild("CheckInterractable")
+                            if checkScript and not checkScript:GetAttribute("isHealing") then
+                                activeHeals[player] = nil
+                            end
+                        end
+                        -- Start healing this player if not already
+                        if not activeHeals[player] then
+                            activeHeals[player] = true
+                            doOthersHealTrue(player)
+                        end
+                    else
+                        -- Stop healing if HP is full or dead
+                        if activeHeals[player] then
+                            activeHeals[player] = nil
+                            doOthersHealFalse(player)
+                        end
+                    end
+                else
+                    -- Player left or no character
+                    if activeHeals[player] then
+                        activeHeals[player] = nil
+                        pcall(function() doOthersHealFalse(player) end)
+                    end
+                end
+            end
+        end)
+    else
+        if AutoHealAllConnection then AutoHealAllConnection:Disconnect(); AutoHealAllConnection = nil end
+    end
+end
+
 -- Create Window
 local Window = Obsidian:CreateWindow({
     Title = "HEXWARE",
@@ -250,7 +394,31 @@ do
     
     local HealBox = SurvivorTab:AddLeftGroupbox("Healing")
     
-    HealBox:AddLabel("Healing features will be added here")
+    HealBox:AddToggle("InstantHealSelf", {
+        Text = "Instant Heal Self",
+        Default = false,
+        Tooltip = "Automatically heal yourself instantly when injured"
+    }):OnChanged(function(value)
+        setInstantHealSelf(value)
+        Obsidian:Notify({
+            Title = "HEXWARE",
+            Description = value and "Instant Heal Self enabled" or "Instant Heal Self disabled",
+            Duration = 2
+        })
+    end)
+    
+    HealBox:AddToggle("AutoHealAll", {
+        Text = "Auto Heal All",
+        Default = false,
+        Tooltip = "Automatically heal all nearby injured players"
+    }):OnChanged(function(value)
+        setAutoHealAll(value)
+        Obsidian:Notify({
+            Title = "HEXWARE",
+            Description = value and "Auto Heal All enabled" or "Auto Heal All disabled",
+            Duration = 2
+        })
+    end)
     
     local SurvBox = SurvivorTab:AddRightGroupbox("Survivor Features")
     
@@ -284,16 +452,54 @@ do
     ESPBox:AddDivider()
     ESPBox:AddLabel("Player ESP")
     
+    ESPBox:AddToggle("ShowKillers", {
+        Text = "Show Killers",
+        Default = true,
+        Tooltip = "Highlight killer players"
+    }):OnChanged(function(value)
+        HEX.ESP.ShowKillers = value
+        -- Refresh all player ESP
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character then
+                local h = p.Character:FindFirstChild("RxmmyESP")
+                if h then h:Destroy() end
+            end
+        end
+        for _, p in ipairs(Players:GetPlayers()) do
+            SetupPlayerESP(p)
+        end
+    end)
+    
     ESPBox:AddLabel("Killer Color:"):AddColorPicker("KillerColor", {
         Default = HEX.ESP.Players.Killer.Color,
-        Title = "Killer ESP Color"
+        Title = "Killer ESP Color",
+        Transparency = 0
     }):OnChanged(function(value)
         HEX.ESP.Players.Killer.Color = value
     end)
     
+    ESPBox:AddToggle("ShowSurvivors", {
+        Text = "Show Survivors",
+        Default = true,
+        Tooltip = "Highlight survivor players"
+    }):OnChanged(function(value)
+        HEX.ESP.ShowSurvivors = value
+        -- Refresh all player ESP
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p.Character then
+                local h = p.Character:FindFirstChild("RxmmyESP")
+                if h then h:Destroy() end
+            end
+        end
+        for _, p in ipairs(Players:GetPlayers()) do
+            SetupPlayerESP(p)
+        end
+    end)
+    
     ESPBox:AddLabel("Survivor Color:"):AddColorPicker("SurvivorColor", {
         Default = HEX.ESP.Players.Survivor.Color,
-        Title = "Survivor ESP Color"
+        Title = "Survivor ESP Color",
+        Transparency = 0
     }):OnChanged(function(value)
         HEX.ESP.Players.Survivor.Color = value
     end)
@@ -302,7 +508,8 @@ do
     
     ObjectBox:AddLabel("Generator Color:"):AddColorPicker("GeneratorColor", {
         Default = Color3.fromRGB(210, 87, 255),
-        Title = "Generator ESP Color"
+        Title = "Generator ESP Color",
+        Transparency = 0
     }):OnChanged(function(value)
         for _, obj in ipairs(HEX.ESP.Objects) do
             if obj.Name == "Generator" then obj.Color = value end
@@ -311,7 +518,8 @@ do
     
     ObjectBox:AddLabel("Gate Color:"):AddColorPicker("GateColor", {
         Default = Color3.fromRGB(255, 255, 255),
-        Title = "Gate ESP Color"
+        Title = "Gate ESP Color",
+        Transparency = 0
     }):OnChanged(function(value)
         for _, obj in ipairs(HEX.ESP.Objects) do
             if obj.Name == "Gate" then obj.Color = value end
@@ -320,7 +528,8 @@ do
     
     ObjectBox:AddLabel("Pallet Color:"):AddColorPicker("PalletColor", {
         Default = Color3.fromRGB(74, 255, 181),
-        Title = "Pallet ESP Color"
+        Title = "Pallet ESP Color",
+        Transparency = 0
     }):OnChanged(function(value)
         for _, obj in ipairs(HEX.ESP.Objects) do
             if obj.Name == "Palletwrong" then obj.Color = value end
@@ -329,7 +538,8 @@ do
     
     ObjectBox:AddLabel("Hook Color:"):AddColorPicker("HookColor", {
         Default = Color3.fromRGB(132, 255, 169),
-        Title = "Hook ESP Color"
+        Title = "Hook ESP Color",
+        Transparency = 0
     }):OnChanged(function(value)
         for _, obj in ipairs(HEX.ESP.Objects) do
             if obj.Name == "Hook" then obj.Color = value end
@@ -339,17 +549,64 @@ end
 
 -- Misc Tab
 do
-    local MiscBox = MiscTab:AddLeftGroupbox("Miscellaneous")
+    local MiscBox = MiscTab:AddLeftGroupbox("UI Settings")
     
-    MiscBox:AddLabel("Misc features will be added here")
+    MiscBox:AddButton({
+        Text = "Unload UI",
+        Func = function()
+            Obsidian:Unload()
+        end,
+        DoubleClick = true,
+        Tooltip = "Double-click to unload the UI"
+    })
+    
+    MiscBox:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", {
+        Default = "RightControl",
+        NoUI = true,
+        Text = "Menu keybind"
+    })
+    
+    MiscBox:AddDivider()
+    
+    MiscBox:AddLabel("Background transparency"):AddSlider("BackgroundTransparency", {
+        Text = "Transparency",
+        Default = 0,
+        Min = 0,
+        Max = 1,
+        Rounding = 2,
+        Compact = true
+    })
+    
+    MiscBox:AddLabel("Disable UI animations"):AddToggle("DisableAnimations", {
+        Text = "Disable animations",
+        Default = false
+    }):OnChanged(function(value)
+        Obsidian.UseAcrylic = not value
+    end)
 end
+
+-- Theme Manager & Save Manager
+ThemeManager:SetLibrary(Obsidian)
+SaveManager:SetLibrary(Obsidian)
+
+-- Set subfolder for configs
+SaveManager:SetFolder("HEXWARE/violence-district")
+
+-- Build config section
+SaveManager:BuildConfigSection(MiscTab)
+
+-- Build theme section  
+ThemeManager:ApplyToTab(MiscTab)
+
+-- Load autoload config if exists
+SaveManager:LoadAutoloadConfig()
 
 Obsidian:Notify({
     Title = "HEXWARE",
-    Description = "Loaded with ESP & Auto Skill Check!",
+    Description = "Loaded with ESP, Auto Skill Check & Healing!",
     Duration = 3
 })
 
 print("[HEXWARE] Loaded successfully!")
-print("[HEXWARE] Features: ESP, Auto Skill Check")
+print("[HEXWARE] Features: ESP, Auto Skill Check, Instant Heal, Auto Heal All")
 print("[HEXWARE] Credits: Rxmmy (ESP & Skill Check)")
