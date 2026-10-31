@@ -31,9 +31,9 @@ end)
 getgenv().HEX = getgenv().HEX or {
     ESP = {
         Enabled = false,
-        ShowObjects = true,
-        ShowKillers = true,
-        ShowSurvivors = true,
+        ShowObjects = false,
+        ShowKillers = false,
+        ShowSurvivors = false,
         Players = {
             Killer = {Color = Color3.fromRGB(255, 93, 108)},
             Survivor = {Color = Color3.fromRGB(64, 224, 255)}
@@ -454,7 +454,7 @@ do
     
     ESPBox:AddToggle("ShowKillers", {
         Text = "Killer ESP",
-        Default = true,
+        Default = false,
         Tooltip = "Highlight killer players"
     }):OnChanged(function(value)
         HEX.ESP.ShowKillers = value
@@ -498,7 +498,7 @@ do
     
     ESPBox:AddToggle("ShowSurvivors", {
         Text = "Survivor ESP",
-        Default = true,
+        Default = false,
         Tooltip = "Highlight survivor players"
     }):OnChanged(function(value)
         HEX.ESP.ShowSurvivors = value
@@ -542,7 +542,7 @@ do
     
     ESPBox:AddToggle("ShowObjects", {
         Text = "Object ESP",
-        Default = true,
+        Default = false,
         Tooltip = "Highlight objects (generators, gates, etc)"
     }):OnChanged(function(value)
         HEX.ESP.ShowObjects = value
@@ -666,7 +666,7 @@ end
 pcall(function()
     ThemeManager:SetLibrary(Obsidian)
     SaveManager:SetLibrary(Obsidian)
-    SaveManager:SetFolder("HEXWARE/violence-district")
+    SaveManager:SetFolder("hexware/violence-district")
     
     -- Add Configuration section
     SaveManager:BuildConfigSection(MiscTab)
