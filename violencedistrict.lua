@@ -29,6 +29,16 @@ end)
 
 -- Config
 getgenv().HEX = getgenv().HEX or {
+    Movement = {
+        Speed = false,
+        SpeedValue = 1.5,
+        SpeedConnection = nil,
+        WalkSpeed = false,
+        WalkSpeedValue = 25,
+        PerfectLanding = false,
+        LandingConnection = nil,
+        LandingCharConn = nil
+    },
     ESP = {
         Enabled = false,
         ShowObjects = false,
@@ -369,7 +379,159 @@ local MiscTab = Window:AddTab({ Name = "Misc", Icon = "lucide:settings" })
 do
     local PlayerBox = MainTab:AddLeftGroupbox("Player")
     
-    PlayerBox:AddLabel("Movement features will be added here")
+    -- Speed Hack (Position-based, safe)
+    PlayerBox:AddToggle("SpeedHack", {
+        Text = "Speed Hack (Stealth)",
+        Default = false,
+        Tooltip = "Position-based speed (safe but may flag at high values)"
+    }):OnChanged(function(value)
+        HEX.Movement.Speed = value
+        
+        if value then
+            HEX.Movement.SpeedConnection = RunService.Heartbeat:Connect(function(delta)
+                if not HEX.Movement.Speed or not Character or not RootPart then return end
+                
+                local hum = Character:FindFirstChildOfClass("Humanoid")
+                if not hum or hum.Health <= 0 then return end
+                
+                -- Get movement direction
+                local moveVector = hum.MoveVector
+                if moveVector.Magnitude > 0 then
+                    -- Small incremental movement
+                    local speed = HEX.Movement.SpeedValue
+                    local moveAmount = moveVector * speed * delta
+                    
+                    -- Apply position change in small steps
+                    local success = pcall(function()
+                        RootPart.CFrame = RootPart.CFrame + moveAmount
+                    end)
+                end
+            end)
+        else
+            if HEX.Movement.SpeedConnection then
+                HEX.Movement.SpeedConnection:Disconnect()
+                HEX.Movement.SpeedConnection = nil
+            end
+        end
+    end)
+    
+    PlayerBox:AddSlider("SpeedValue", {
+        Text = "Speed Multiplier",
+        Default = 1.5,
+        Min = 1,
+        Max = 3,
+        Rounding = 1,
+        Compact = false
+    }):OnChanged(function(value)
+        HEX.Movement.SpeedValue = value
+    end)
+    
+    PlayerBox:AddLabel("⚠️ Keep speed low (1.5-2.5) to avoid flags")
+    
+    PlayerBox:AddDivider()
+    
+    -- WalkSpeed (might work?)
+    PlayerBox:AddToggle("WalkSpeed", {
+        Text = "WalkSpeed Modifier",
+        Default = false,
+        Tooltip = "Try changing WalkSpeed (may not work)"
+    }):OnChanged(function(value)
+        if value then
+            if Humanoid then
+                Humanoid.WalkSpeed = HEX.Movement.WalkSpeedValue
+            end
+        else
+            if Humanoid then
+                Humanoid.WalkSpeed = 16
+            end
+        end
+    end)
+    
+    PlayerBox:AddSlider("WalkSpeedValue", {
+        Text = "WalkSpeed",
+        Default = 25,
+        Min = 16,
+        Max = 50,
+        Rounding = 0,
+        Compact = false
+    }):OnChanged(function(value)
+        HEX.Movement.WalkSpeedValue = value
+        if HEX.Movement.WalkSpeed and Humanoid then
+            Humanoid.WalkSpeed = value
+        end
+    end)
+    
+    PlayerBox:AddDivider()
+    
+    -- Auto Perfect Landing
+    PlayerBox:AddToggle("PerfectLanding", {
+        Text = "Auto Perfect Landing",
+        Default = false,
+        Tooltip = "Automatically trigger speed boost when landing from height"
+    }):OnChanged(function(value)
+        HEX.Movement.PerfectLanding = value
+        
+        if value then
+            local function setupLanding(char)
+                if not char then return end
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if not hum then return end
+                
+                local wasFalling = false
+                local fallStart = 0
+                
+                local conn = hum.StateChanged:Connect(function(old, new)
+                    if not HEX.Movement.PerfectLanding then return end
+                    
+                    if new == Enum.HumanoidStateType.Freefall then
+                        wasFalling = true
+                        fallStart = tick()
+                    end
+                    
+                    if wasFalling and (new == Enum.HumanoidStateType.Landed or new == Enum.HumanoidStateType.Running) then
+                        local fallTime = tick() - fallStart
+                        wasFalling = false
+                        
+                        if fallTime >= 0.25 then
+                            -- Trigger speed boost
+                            local oldSpeed = hum.WalkSpeed
+                            hum.WalkSpeed = oldSpeed + 8
+                            
+                            Obsidian:Notify({
+                                Title = "Perfect Landing",
+                                Description = "+8 speed for 3 seconds",
+                                Duration = 2
+                            })
+                            
+                            task.wait(3)
+                            if hum and hum.Parent then
+                                hum.WalkSpeed = oldSpeed
+                            end
+                        end
+                    end
+                end)
+                
+                if HEX.Movement.LandingConnection then
+                    HEX.Movement.LandingConnection:Disconnect()
+                end
+                HEX.Movement.LandingConnection = conn
+            end
+            
+            setupLanding(Character)
+            HEX.Movement.LandingCharConn = LocalPlayer.CharacterAdded:Connect(setupLanding)
+        else
+            if HEX.Movement.LandingConnection then
+                HEX.Movement.LandingConnection:Disconnect()
+                HEX.Movement.LandingConnection = nil
+            end
+            if HEX.Movement.LandingCharConn then
+                HEX.Movement.LandingCharConn:Disconnect()
+                HEX.Movement.LandingCharConn = nil
+            end
+        end
+    end)
+    
+    PlayerBox:AddLabel("💡 +8 speed for 3s after falling 0.25s+")
 end
 
 -- Survivor Tab
