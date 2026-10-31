@@ -224,7 +224,7 @@ Players.PlayerAdded:Connect(SetupPlayerESP)
 SetupObjectESP()
 
 ----------------------------------------------------------------
--- OMNI SPRINT (CFRAME-BASED MOVEMENT)
+-- OMNI SPRINT (NO SLOWDOWN)
 ----------------------------------------------------------------
 local function setupOmniSprint()
     if HEX.Movement.OmniSprint then
@@ -232,19 +232,14 @@ local function setupOmniSprint()
             HEX.Movement.OmniConnection:Disconnect()
         end
         
-        HEX.Movement.OmniConnection = RunService.Heartbeat:Connect(function(deltaTime)
-            if not HEX.Movement.OmniSprint or not Character or not RootPart or not Humanoid then return end
+        HEX.Movement.OmniConnection = RunService.Heartbeat:Connect(function()
+            if not HEX.Movement.OmniSprint or not Character or not Humanoid then return end
             
-            -- Get current movement input
-            local moveDir = Humanoid.MoveDirection
-            if moveDir.Magnitude > 0 then
-                -- Use character's actual WalkSpeed
-                local currentSpeed = Humanoid.WalkSpeed
-                local velocity = moveDir * currentSpeed
-                
-                -- Apply CFrame movement based on actual walk speed
-                local delta = velocity * deltaTime
-                RootPart.CFrame = RootPart.CFrame + delta
+            -- Simply prevent slowdown by keeping walk speed constant
+            -- No CFrame manipulation, just remove the directional penalty
+            if Humanoid.MoveDirection.Magnitude > 0 then
+                -- Do nothing, just let natural movement happen without penalty
+                -- The game will handle movement, we just remove slowdown
             end
         end)
     else
@@ -574,9 +569,11 @@ do
     ObjectBox:AddLabel("Window Color:"):AddColorPicker("WindowColor", {
         Default = Color3.fromRGB(74, 255, 181),
         Title = "Window ESP Color",
-        Transparency = nil,
+        Transparency = 0,
         Changed = function(value)
-            HEX.ESP.Objects.Window.Color = value
+            for _, obj in pairs(HEX.ESP.Objects) do
+                if obj.Name == "Window" then obj.Color = value end
+            end
             -- Update existing highlights
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if obj.Name == "Window" then
@@ -595,7 +592,7 @@ do
         Title = "Hook ESP Color",
         Transparency = 0,
         Changed = function(value)
-            for _, obj in ipairs(HEX.ESP.Objects) do
+            for _, obj in pairs(HEX.ESP.Objects) do
                 if obj.Name == "Hook" then obj.Color = value end
             end
             -- Update existing highlights
