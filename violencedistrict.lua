@@ -232,18 +232,18 @@ local function setupOmniSprint()
             HEX.Movement.OmniConnection:Disconnect()
         end
         
-        HEX.Movement.OmniConnection = RunService.Heartbeat:Connect(function()
+        HEX.Movement.OmniConnection = RunService.Heartbeat:Connect(function(deltaTime)
             if not HEX.Movement.OmniSprint or not Character or not RootPart or not Humanoid then return end
             
             -- Get current movement input
             local moveDir = Humanoid.MoveDirection
             if moveDir.Magnitude > 0 then
-                -- Calculate desired velocity based on base speed (16 studs/sec)
-                local baseSpeed = 16
-                local velocity = moveDir * baseSpeed
+                -- Use character's actual WalkSpeed
+                local currentSpeed = Humanoid.WalkSpeed
+                local velocity = moveDir * currentSpeed
                 
-                -- Apply CFrame movement to maintain consistent speed in all directions
-                local delta = velocity * RunService.Heartbeat:Wait()
+                -- Apply CFrame movement based on actual walk speed
+                local delta = velocity * deltaTime
                 RootPart.CFrame = RootPart.CFrame + delta
             end
         end)
@@ -561,6 +561,25 @@ do
             -- Update existing highlights for any object with "pallet" in name
             for _, obj in ipairs(Workspace:GetDescendants()) do
                 if obj.Name:lower():find("pallet") then
+                    local h = obj:FindFirstChild("RxmmyESP")
+                    if h then
+                        h.FillColor = value
+                        h.OutlineColor = value
+                    end
+                end
+            end
+        end
+    })
+    
+    ObjectBox:AddLabel("Window Color:"):AddColorPicker("WindowColor", {
+        Default = Color3.fromRGB(74, 255, 181),
+        Title = "Window ESP Color",
+        Transparency = nil,
+        Changed = function(value)
+            HEX.ESP.Objects.Window.Color = value
+            -- Update existing highlights
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj.Name == "Window" then
                     local h = obj:FindFirstChild("RxmmyESP")
                     if h then
                         h.FillColor = value
