@@ -657,20 +657,24 @@ do
 end
 
 -- Initialize SaveManager and ThemeManager
-ThemeManager:SetLibrary(Obsidian)
-SaveManager:SetLibrary(Obsidian)
-SaveManager:SetFolder("HEXWARE/violence-district")
-
--- Add Configuration section
-SaveManager:BuildConfigSection(MiscTab)
-
--- Add Theme Manager section
-ThemeManager:ApplyToTab(MiscTab)
-
--- Load autoload config
-task.spawn(function()
-    task.wait(1)
-    SaveManager:LoadAutoloadConfig()
+pcall(function()
+    ThemeManager:SetLibrary(Obsidian)
+    SaveManager:SetLibrary(Obsidian)
+    SaveManager:SetFolder("HEXWARE/violence-district")
+    
+    -- Add Configuration section
+    SaveManager:BuildConfigSection(MiscTab)
+    
+    -- Add Theme Manager section
+    ThemeManager:ApplyToTab(MiscTab)
+    
+    -- Load autoload config
+    task.spawn(function()
+        task.wait(1)
+        pcall(function()
+            SaveManager:LoadAutoloadConfig()
+        end)
+    end)
 end)
 
 Obsidian:Notify({
