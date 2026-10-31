@@ -30,14 +30,8 @@ end)
 -- Config
 getgenv().HEX = getgenv().HEX or {
     Movement = {
-        Speed = false,
-        SpeedValue = 1.5,
-        SpeedConnection = nil,
-        WalkSpeed = false,
-        WalkSpeedValue = 25,
-        PerfectLanding = false,
-        LandingConnection = nil,
-        LandingCharConn = nil
+        OmniSprint = false,
+        OmniConnection = nil
     },
     ESP = {
         Enabled = false,
@@ -52,24 +46,19 @@ getgenv().HEX = getgenv().HEX or {
             {Name = "Generator", Color = Color3.fromRGB(210, 87, 255)},
             {Name = "Gate", Color = Color3.fromRGB(255, 255, 255)},
             {Name = "Palletwrong", Color = Color3.fromRGB(74, 255, 181)},
-            {Name = "Pallet", Color = Color3.fromRGB(74, 255, 181)},
             {Name = "Window", Color = Color3.fromRGB(74, 255, 181)},
             {Name = "Hook", Color = Color3.fromRGB(132, 255, 169)}
         }
     },
     AutoSkillCheck = {
         Enabled = false
-    },
-    Healing = {
-        InstantHealSelf = false,
-        AutoHealAll = false
     }
 }
 local HEX = getgenv().HEX
 
--- Healing Connections
-local InstantHealConnection = nil
-local AutoHealAllConnection = nil
+-- Healing Connections (DELETED - patched by anticheat)
+-- local InstantHealConnection = nil
+-- local AutoHealAllConnection = nil
 
 ----------------------------------------------------------------
 -- ESP SYSTEM
@@ -111,13 +100,14 @@ local function SetupPlayerESP(p)
             if existing then existing:Destroy() end
             task.wait(0.1)
             
-            if HEX.ESP.Enabled then
-                local role = GetRole(p)
-                if role == "Killer" and HEX.ESP.ShowKillers then
-                    ApplyHighlight(p.Character, HEX.ESP.Players.Killer.Color)
-                elseif role == "Survivor" and HEX.ESP.ShowSurvivors then
-                    ApplyHighlight(p.Character, HEX.ESP.Players.Survivor.Color)
-                end
+            -- Check if ESP enabled AND specific role is enabled
+            local role = GetRole(p)
+            local shouldShow = HEX.ESP.Enabled and 
+                             ((role == "Killer" and HEX.ESP.ShowKillers) or 
+                              (role == "Survivor" and HEX.ESP.ShowSurvivors))
+            
+            if shouldShow then
+                ApplyHighlight(p.Character, HEX.ESP.Players[role].Color)
             end
         end
     end
@@ -133,13 +123,8 @@ local function SetupObjectESP()
             if HEX.ESP.Enabled and HEX.ESP.ShowObjects then
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     for _, data in ipairs(HEX.ESP.Objects) do
-                        -- Exact match or partial match for pallets
-                        local isMatch = obj.Name == data.Name
-                        if not isMatch and data.Name == "Pallet" then
-                            isMatch = obj.Name:lower():find("pallet")
-                        end
-                        
-                        if isMatch and not obj:FindFirstChild("RxmmyESP") then 
+                        -- Only EXACT name match - no partial searches
+                        if obj.Name == data.Name and not obj:FindFirstChild("RxmmyESP") then 
                             ApplyHighlight(obj, data.Color)
                         end
                     end
@@ -229,131 +214,28 @@ Players.PlayerAdded:Connect(SetupPlayerESP)
 SetupObjectESP()
 
 ----------------------------------------------------------------
--- HEALING SYSTEM
+-- OMNI SPRINT (NO SLOWDOWN)
 ----------------------------------------------------------------
-local function doSelfHealTrue()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local healRemote = ReplicatedStorage.Remotes.Healing.HealEvent
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    pcall(function() healRemote:FireServer(hrp, true) end)
-end
-
-local function doSelfHealFalse()
-    local char = LocalPlayer.Character
-    if not char then return end
-    local healRemote = ReplicatedStorage.Remotes.Healing.HealEvent
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    pcall(function() healRemote:FireServer(hrp, false) end)
-end
-
-local function doOthersHealTrue(targetPlayer)
-    if not targetPlayer or not targetPlayer.Character then return end
-    local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not targetHRP then return end
-    local healRemote = ReplicatedStorage.Remotes.Healing.HealEvent
-    pcall(function() healRemote:FireServer(targetHRP, true) end)
-end
-
-local function doOthersHealFalse(targetPlayer)
-    if not targetPlayer or not targetPlayer.Character then return end
-    local targetHRP = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-    if not targetHRP then return end
-    local healRemote = ReplicatedStorage.Remotes.Healing.HealEvent
-    pcall(function() healRemote:FireServer(targetHRP, false) end)
-end
-
-local function setInstantHealSelf(v)
-    HEX.Healing.InstantHealSelf = v
-    
-    if v then
-        local healActive = false
-        if InstantHealConnection then InstantHealConnection:Disconnect() end
-        InstantHealConnection = RunService.Heartbeat:Connect(function()
-            if not HEX.Healing.InstantHealSelf then return end
+local function setupOmniSprint()
+    if HEX.Movement.OmniSprint then
+        if HEX.Movement.OmniConnection then
+            HEX.Movement.OmniConnection:Disconnect()
+        end
+        
+        HEX.Movement.OmniConnection = RunService.Heartbeat:Connect(function()
+            if not HEX.Movement.OmniSprint or not Humanoid then return end
             
-            local myChar = LocalPlayer.Character
-            local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-            if not myHum then return end
-            
-            if myHum.Health >= myHum.MaxHealth * 0.9 then 
-                -- Auto stop heal when HP is full
-                if healActive then
-                    healActive = false
-                    doSelfHealFalse()
-                end
-                return 
-            end
-            
-            -- Check if game cancelled our heal (e.g. player moved)
-            if healActive then
-                local checkScript = myChar:FindFirstChild("CheckInterractable")
-                if checkScript and not checkScript:GetAttribute("isHealing") then
-                    -- Game cancelled our heal, reset so we can restart
-                    healActive = false
-                end
-            end
-            
-            -- Start heal (or restart after being cancelled)
-            if not healActive then
-                healActive = true
-                doSelfHealTrue()
+            -- Remove movement penalty - keep speed constant in all directions
+            if Humanoid.MoveDirection.Magnitude > 0 then
+                local moveDir = Humanoid.MoveDirection
+                Humanoid.WalkSpeed = 16 -- Keep at default, no slowdown
             end
         end)
     else
-        if InstantHealConnection then InstantHealConnection:Disconnect(); InstantHealConnection = nil end
-        -- Send stop heal just in case
-        pcall(doSelfHealFalse)
-    end
-end
-
-local function setAutoHealAll(v)
-    HEX.Healing.AutoHealAll = v
-    
-    if v then
-        local activeHeals = {} -- [player] = true if we're currently healing them
-        if AutoHealAllConnection then AutoHealAllConnection:Disconnect() end
-        AutoHealAllConnection = RunService.Heartbeat:Connect(function()
-            if not HEX.Healing.AutoHealAll then return end
-            
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LocalPlayer and player.Character then
-                    local hrp = player.Character:FindFirstChild("HumanoidRootPart")
-                    local hum = player.Character:FindFirstChildOfClass("Humanoid")
-                    if hum and hum.Health > 0 and hum.Health < hum.MaxHealth * 0.9 and hrp then
-                        -- Check if game cancelled our heal on this player (e.g. we or they moved)
-                        if activeHeals[player] then
-                            local myChar = LocalPlayer.Character
-                            local checkScript = myChar and myChar:FindFirstChild("CheckInterractable")
-                            if checkScript and not checkScript:GetAttribute("isHealing") then
-                                activeHeals[player] = nil
-                            end
-                        end
-                        -- Start healing this player if not already
-                        if not activeHeals[player] then
-                            activeHeals[player] = true
-                            doOthersHealTrue(player)
-                        end
-                    else
-                        -- Stop healing if HP is full or dead
-                        if activeHeals[player] then
-                            activeHeals[player] = nil
-                            doOthersHealFalse(player)
-                        end
-                    end
-                else
-                    -- Player left or no character
-                    if activeHeals[player] then
-                        activeHeals[player] = nil
-                        pcall(function() doOthersHealFalse(player) end)
-                    end
-                end
-            end
-        end)
-    else
-        if AutoHealAllConnection then AutoHealAllConnection:Disconnect(); AutoHealAllConnection = nil end
+        if HEX.Movement.OmniConnection then
+            HEX.Movement.OmniConnection:Disconnect()
+            HEX.Movement.OmniConnection = nil
+        end
     end
 end
 
@@ -377,161 +259,25 @@ local MiscTab = Window:AddTab({ Name = "Misc", Icon = "lucide:settings" })
 
 -- Main Tab
 do
-    local PlayerBox = MainTab:AddLeftGroupbox("Player")
+    local PlayerBox = MainTab:AddLeftGroupbox("Movement")
     
-    -- Speed Hack (Position-based, safe)
-    PlayerBox:AddToggle("SpeedHack", {
-        Text = "Speed Hack (Stealth)",
+    PlayerBox:AddToggle("OmniSprint", {
+        Text = "Omni Sprint",
         Default = false,
-        Tooltip = "Position-based speed (safe but may flag at high values)"
+        Tooltip = "Run at full speed in all directions (no slowdown)"
     }):OnChanged(function(value)
-        HEX.Movement.Speed = value
+        HEX.Movement.OmniSprint = value
+        setupOmniSprint()
         
-        if value then
-            HEX.Movement.SpeedConnection = RunService.Heartbeat:Connect(function(delta)
-                if not HEX.Movement.Speed or not Character or not RootPart then return end
-                
-                local hum = Character:FindFirstChildOfClass("Humanoid")
-                if not hum or hum.Health <= 0 then return end
-                
-                -- Get movement direction
-                local moveVector = hum.MoveVector
-                if moveVector.Magnitude > 0 then
-                    -- Small incremental movement
-                    local speed = HEX.Movement.SpeedValue
-                    local moveAmount = moveVector * speed * delta
-                    
-                    -- Apply position change in small steps
-                    local success = pcall(function()
-                        RootPart.CFrame = RootPart.CFrame + moveAmount
-                    end)
-                end
-            end)
-        else
-            if HEX.Movement.SpeedConnection then
-                HEX.Movement.SpeedConnection:Disconnect()
-                HEX.Movement.SpeedConnection = nil
-            end
-        end
+        Obsidian:Notify({
+            Title = "HEXWARE",
+            Description = value and "Omni Sprint enabled" or "Omni Sprint disabled",
+            Duration = 2
+        })
     end)
     
-    PlayerBox:AddSlider("SpeedValue", {
-        Text = "Speed Multiplier",
-        Default = 1.5,
-        Min = 1,
-        Max = 3,
-        Rounding = 1,
-        Compact = false
-    }):OnChanged(function(value)
-        HEX.Movement.SpeedValue = value
-    end)
-    
-    PlayerBox:AddLabel("⚠️ Keep speed low (1.5-2.5) to avoid flags")
-    
-    PlayerBox:AddDivider()
-    
-    -- WalkSpeed (might work?)
-    PlayerBox:AddToggle("WalkSpeed", {
-        Text = "WalkSpeed Modifier",
-        Default = false,
-        Tooltip = "Try changing WalkSpeed (may not work)"
-    }):OnChanged(function(value)
-        if value then
-            if Humanoid then
-                Humanoid.WalkSpeed = HEX.Movement.WalkSpeedValue
-            end
-        else
-            if Humanoid then
-                Humanoid.WalkSpeed = 16
-            end
-        end
-    end)
-    
-    PlayerBox:AddSlider("WalkSpeedValue", {
-        Text = "WalkSpeed",
-        Default = 25,
-        Min = 16,
-        Max = 50,
-        Rounding = 0,
-        Compact = false
-    }):OnChanged(function(value)
-        HEX.Movement.WalkSpeedValue = value
-        if HEX.Movement.WalkSpeed and Humanoid then
-            Humanoid.WalkSpeed = value
-        end
-    end)
-    
-    PlayerBox:AddDivider()
-    
-    -- Auto Perfect Landing
-    PlayerBox:AddToggle("PerfectLanding", {
-        Text = "Auto Perfect Landing",
-        Default = false,
-        Tooltip = "Automatically trigger speed boost when landing from height"
-    }):OnChanged(function(value)
-        HEX.Movement.PerfectLanding = value
-        
-        if value then
-            local function setupLanding(char)
-                if not char then return end
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if not hum then return end
-                
-                local wasFalling = false
-                local fallStart = 0
-                
-                local conn = hum.StateChanged:Connect(function(old, new)
-                    if not HEX.Movement.PerfectLanding then return end
-                    
-                    if new == Enum.HumanoidStateType.Freefall then
-                        wasFalling = true
-                        fallStart = tick()
-                    end
-                    
-                    if wasFalling and (new == Enum.HumanoidStateType.Landed or new == Enum.HumanoidStateType.Running) then
-                        local fallTime = tick() - fallStart
-                        wasFalling = false
-                        
-                        if fallTime >= 0.25 then
-                            -- Trigger speed boost
-                            local oldSpeed = hum.WalkSpeed
-                            hum.WalkSpeed = oldSpeed + 8
-                            
-                            Obsidian:Notify({
-                                Title = "Perfect Landing",
-                                Description = "+8 speed for 3 seconds",
-                                Duration = 2
-                            })
-                            
-                            task.wait(3)
-                            if hum and hum.Parent then
-                                hum.WalkSpeed = oldSpeed
-                            end
-                        end
-                    end
-                end)
-                
-                if HEX.Movement.LandingConnection then
-                    HEX.Movement.LandingConnection:Disconnect()
-                end
-                HEX.Movement.LandingConnection = conn
-            end
-            
-            setupLanding(Character)
-            HEX.Movement.LandingCharConn = LocalPlayer.CharacterAdded:Connect(setupLanding)
-        else
-            if HEX.Movement.LandingConnection then
-                HEX.Movement.LandingConnection:Disconnect()
-                HEX.Movement.LandingConnection = nil
-            end
-            if HEX.Movement.LandingCharConn then
-                HEX.Movement.LandingCharConn:Disconnect()
-                HEX.Movement.LandingCharConn = nil
-            end
-        end
-    end)
-    
-    PlayerBox:AddLabel("💡 +8 speed for 3s after falling 0.25s+")
+    PlayerBox:AddLabel("💡 Removes directional speed penalty")
+    PlayerBox:AddLabel("Run backwards/sideways at full speed")
 end
 
 -- Survivor Tab
@@ -562,37 +308,10 @@ do
     
     GenBox:AddLabel("Generator features will be added here")
     
-    local HealBox = SurvivorTab:AddLeftGroupbox("Healing")
-    
-    HealBox:AddToggle("InstantHealSelf", {
-        Text = "Instant Heal Self",
-        Default = false,
-        Tooltip = "Automatically heal yourself instantly when injured"
-    }):OnChanged(function(value)
-        setInstantHealSelf(value)
-        Obsidian:Notify({
-            Title = "HEXWARE",
-            Description = value and "Instant Heal Self enabled" or "Instant Heal Self disabled",
-            Duration = 2
-        })
-    end)
-    
-    HealBox:AddToggle("AutoHealAll", {
-        Text = "Auto Heal All",
-        Default = false,
-        Tooltip = "Automatically heal all nearby injured players"
-    }):OnChanged(function(value)
-        setAutoHealAll(value)
-        Obsidian:Notify({
-            Title = "HEXWARE",
-            Description = value and "Auto Heal All enabled" or "Auto Heal All disabled",
-            Duration = 2
-        })
-    end)
-    
     local SurvBox = SurvivorTab:AddRightGroupbox("Survivor Features")
     
-    SurvBox:AddLabel("Survivor features will be added here")
+    SurvBox:AddLabel("⚠️ Healing features removed (patched)")
+    SurvBox:AddLabel("Other survivor features coming soon")
 end
 
 -- Killer Tab
@@ -627,12 +346,12 @@ do
         Tooltip = "Highlight killer players"
     }):OnChanged(function(value)
         HEX.ESP.ShowKillers = value
-        -- Just update visibility, no destroy/recreate
+        -- Refresh without destroying
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
-                local h = p.Character:FindFirstChild("RxmmyESP")
                 local role = GetRole(p)
                 if role == "Killer" then
+                    local h = p.Character:FindFirstChild("RxmmyESP")
                     if h then
                         h.Enabled = value and HEX.ESP.Enabled
                     elseif value and HEX.ESP.Enabled then
@@ -671,12 +390,12 @@ do
         Tooltip = "Highlight survivor players"
     }):OnChanged(function(value)
         HEX.ESP.ShowSurvivors = value
-        -- Just update visibility, no destroy/recreate
+        -- Refresh without destroying
         for _, p in ipairs(Players:GetPlayers()) do
             if p ~= LocalPlayer and p.Character then
-                local h = p.Character:FindFirstChild("RxmmyESP")
                 local role = GetRole(p)
                 if role == "Survivor" then
+                    local h = p.Character:FindFirstChild("RxmmyESP")
                     if h then
                         h.Enabled = value and HEX.ESP.Enabled
                     elseif value and HEX.ESP.Enabled then
@@ -774,13 +493,13 @@ do
         Transparency = nil,
         Changed = function(value)
             for _, obj in ipairs(HEX.ESP.Objects) do
-                if obj.Name == "Palletwrong" or obj.Name == "Pallet" then 
+                if obj.Name == "Palletwrong" then 
                     obj.Color = value 
                 end
             end
-            -- Update existing highlights - search by partial name
+            -- Update existing highlights - only Palletwrong
             for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj.Name == "Palletwrong" or obj.Name == "Pallet" or obj.Name:lower():find("pallet") then
+                if obj.Name == "Palletwrong" then
                     local h = obj:FindFirstChild("RxmmyESP")
                     if h then
                         h.FillColor = value
@@ -856,10 +575,11 @@ end)
 
 Obsidian:Notify({
     Title = "HEXWARE",
-    Description = "Loaded with ESP, Auto Skill Check & Healing!",
+    Description = "Loaded! ESP, Auto Skill Check & Omni Sprint",
     Duration = 3
 })
 
 print("[HEXWARE] Loaded successfully!")
-print("[HEXWARE] Features: ESP, Auto Skill Check, Instant Heal, Auto Heal All")
-print("[HEXWARE] Credits: Rxmmy (ESP & Skill Check)")
+print("[HEXWARE] Features: ESP, Auto Skill Check, Omni Sprint")
+print("[HEXWARE] Healing removed (patched by anticheat)")
+print("[HEXWARE] Credits: Rxmmy (ESP & Skill Check), hexxer333x")
