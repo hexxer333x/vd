@@ -477,23 +477,24 @@ do
     ESPBox:AddLabel("Killer Color:"):AddColorPicker("KillerColor", {
         Default = HEX.ESP.Players.Killer.Color,
         Title = "Killer ESP Color",
-        Transparency = 0
-    }):OnChanged(function(value)
-        HEX.ESP.Players.Killer.Color = value
-        -- Update all killer highlights in real-time
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character then
-                local role = GetRole(p)
-                if role == "Killer" then
-                    local h = p.Character:FindFirstChild("RxmmyESP")
-                    if h then
-                        h.FillColor = value
-                        h.OutlineColor = value
+        Transparency = 0,
+        Changed = function(value)
+            HEX.ESP.Players.Killer.Color = value
+            -- Update all killer highlights in real-time
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local role = GetRole(p)
+                    if role == "Killer" then
+                        local h = p.Character:FindFirstChild("RxmmyESP")
+                        if h then
+                            h.FillColor = value
+                            h.OutlineColor = value
+                        end
                     end
                 end
             end
         end
-    end)
+    })
     
     ESPBox:AddToggle("ShowSurvivors", {
         Text = "Survivor ESP",
@@ -520,23 +521,24 @@ do
     ESPBox:AddLabel("Survivor Color:"):AddColorPicker("SurvivorColor", {
         Default = HEX.ESP.Players.Survivor.Color,
         Title = "Survivor ESP Color",
-        Transparency = 0
-    }):OnChanged(function(value)
-        HEX.ESP.Players.Survivor.Color = value
-        -- Update all survivor highlights in real-time
-        for _, p in ipairs(Players:GetPlayers()) do
-            if p ~= LocalPlayer and p.Character then
-                local role = GetRole(p)
-                if role == "Survivor" then
-                    local h = p.Character:FindFirstChild("RxmmyESP")
-                    if h then
-                        h.FillColor = value
-                        h.OutlineColor = value
+        Transparency = 0,
+        Changed = function(value)
+            HEX.ESP.Players.Survivor.Color = value
+            -- Update all survivor highlights in real-time
+            for _, p in ipairs(Players:GetPlayers()) do
+                if p ~= LocalPlayer and p.Character then
+                    local role = GetRole(p)
+                    if role == "Survivor" then
+                        local h = p.Character:FindFirstChild("RxmmyESP")
+                        if h then
+                            h.FillColor = value
+                            h.OutlineColor = value
+                        end
                     end
                 end
             end
         end
-    end)
+    })
     
     ESPBox:AddToggle("ShowObjects", {
         Text = "Object ESP",
@@ -558,82 +560,86 @@ do
     ObjectBox:AddLabel("Generator Color:"):AddColorPicker("GeneratorColor", {
         Default = Color3.fromRGB(210, 87, 255),
         Title = "Generator ESP Color",
-        Transparency = 0
-    }):OnChanged(function(value)
-        for _, obj in ipairs(HEX.ESP.Objects) do
-            if obj.Name == "Generator" then obj.Color = value end
-        end
-        -- Update existing highlights
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj.Name == "Generator" then
-                local h = obj:FindFirstChild("RxmmyESP")
-                if h then
-                    h.FillColor = value
-                    h.OutlineColor = value
+        Transparency = 0,
+        Changed = function(value)
+            for _, obj in ipairs(HEX.ESP.Objects) do
+                if obj.Name == "Generator" then obj.Color = value end
+            end
+            -- Update existing highlights
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj.Name == "Generator" then
+                    local h = obj:FindFirstChild("RxmmyESP")
+                    if h then
+                        h.FillColor = value
+                        h.OutlineColor = value
+                    end
                 end
             end
         end
-    end)
+    })
     
     ObjectBox:AddLabel("Gate Color:"):AddColorPicker("GateColor", {
         Default = Color3.fromRGB(255, 255, 255),
         Title = "Gate ESP Color",
-        Transparency = 0
-    }):OnChanged(function(value)
-        for _, obj in ipairs(HEX.ESP.Objects) do
-            if obj.Name == "Gate" then obj.Color = value end
-        end
-        -- Update existing highlights
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj.Name == "Gate" then
-                local h = obj:FindFirstChild("RxmmyESP")
-                if h then
-                    h.FillColor = value
-                    h.OutlineColor = value
+        Transparency = 0,
+        Changed = function(value)
+            for _, obj in ipairs(HEX.ESP.Objects) do
+                if obj.Name == "Gate" then obj.Color = value end
+            end
+            -- Update existing highlights
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj.Name == "Gate" then
+                    local h = obj:FindFirstChild("RxmmyESP")
+                    if h then
+                        h.FillColor = value
+                        h.OutlineColor = value
+                    end
                 end
             end
         end
-    end)
+    })
     
     ObjectBox:AddLabel("Pallet Color:"):AddColorPicker("PalletColor", {
         Default = Color3.fromRGB(74, 255, 181),
         Title = "Pallet ESP Color",
-        Transparency = 0
-    }):OnChanged(function(value)
-        for _, obj in ipairs(HEX.ESP.Objects) do
-            if obj.Name == "Palletwrong" then obj.Color = value end
-        end
-        -- Update existing highlights
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj.Name == "Palletwrong" then
-                local h = obj:FindFirstChild("RxmmyESP")
-                if h then
-                    h.FillColor = value
-                    h.OutlineColor = value
+        Transparency = 0,
+        Changed = function(value)
+            for _, obj in ipairs(HEX.ESP.Objects) do
+                if obj.Name == "Palletwrong" then obj.Color = value end
+            end
+            -- Update existing highlights
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj.Name == "Palletwrong" then
+                    local h = obj:FindFirstChild("RxmmyESP")
+                    if h then
+                        h.FillColor = value
+                        h.OutlineColor = value
+                    end
                 end
             end
         end
-    end)
+    })
     
     ObjectBox:AddLabel("Hook Color:"):AddColorPicker("HookColor", {
         Default = Color3.fromRGB(132, 255, 169),
         Title = "Hook ESP Color",
-        Transparency = 0
-    }):OnChanged(function(value)
-        for _, obj in ipairs(HEX.ESP.Objects) do
-            if obj.Name == "Hook" then obj.Color = value end
-        end
-        -- Update existing highlights
-        for _, obj in ipairs(Workspace:GetDescendants()) do
-            if obj.Name == "Hook" then
-                local h = obj:FindFirstChild("RxmmyESP")
-                if h then
-                    h.FillColor = value
-                    h.OutlineColor = value
+        Transparency = 0,
+        Changed = function(value)
+            for _, obj in ipairs(HEX.ESP.Objects) do
+                if obj.Name == "Hook" then obj.Color = value end
+            end
+            -- Update existing highlights
+            for _, obj in ipairs(Workspace:GetDescendants()) do
+                if obj.Name == "Hook" then
+                    local h = obj:FindFirstChild("RxmmyESP")
+                    if h then
+                        h.FillColor = value
+                        h.OutlineColor = value
+                    end
                 end
             end
         end
-    end)
+    })
 end
 
 -- Misc Tab  
