@@ -123,7 +123,13 @@ local function SetupObjectESP()
             if HEX.ESP.Enabled and HEX.ESP.ShowObjects then
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     for _, data in ipairs(HEX.ESP.Objects) do
-                        if obj.Name == data.Name and not obj:FindFirstChild("RxmmyESP") then 
+                        -- Exact match or partial match for pallets
+                        local isMatch = obj.Name == data.Name
+                        if not isMatch and data.Name == "Pallet" then
+                            isMatch = obj.Name:lower():find("pallet")
+                        end
+                        
+                        if isMatch and not obj:FindFirstChild("RxmmyESP") then 
                             ApplyHighlight(obj, data.Color)
                         end
                     end
@@ -610,9 +616,9 @@ do
                     obj.Color = value 
                 end
             end
-            -- Update existing highlights
+            -- Update existing highlights - search by partial name
             for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj.Name == "Palletwrong" or obj.Name == "Pallet" then
+                if obj.Name == "Palletwrong" or obj.Name == "Pallet" or obj.Name:lower():find("pallet") then
                     local h = obj:FindFirstChild("RxmmyESP")
                     if h then
                         h.FillColor = value
