@@ -224,7 +224,7 @@ Players.PlayerAdded:Connect(SetupPlayerESP)
 SetupObjectESP()
 
 ----------------------------------------------------------------
--- OMNI SPRINT (NO SLOWDOWN)
+-- OMNI SPRINT (CFRAME-BASED MOVEMENT)
 ----------------------------------------------------------------
 local function setupOmniSprint()
     if HEX.Movement.OmniSprint then
@@ -233,13 +233,17 @@ local function setupOmniSprint()
         end
         
         HEX.Movement.OmniConnection = RunService.Heartbeat:Connect(function()
-            if not HEX.Movement.OmniSprint or not Character or not Humanoid then return end
+            if not HEX.Movement.OmniSprint or not Character or not RootPart or not Humanoid then return end
             
-            -- Simply prevent slowdown by keeping walk speed constant
-            -- No CFrame manipulation, just remove the directional penalty
-            if Humanoid.MoveDirection.Magnitude > 0 then
-                -- Do nothing, just let natural movement happen without penalty
-                -- The game will handle movement, we just remove slowdown
+            -- Get current movement input
+            local moveDir = Humanoid.MoveDirection
+            if moveDir.Magnitude > 0 then
+                -- Use default walk speed (16 studs/sec) divided by 60 for per-frame movement
+                local speed = 16 / 60
+                local offset = moveDir * speed
+                
+                -- Apply CFrame movement
+                RootPart.CFrame = RootPart.CFrame + offset
             end
         end)
     else
@@ -342,6 +346,24 @@ do
         Tooltip = "Master toggle - enables all ESP types"
     }):OnChanged(function(value)
         ToggleESP(value)
+        
+        -- Also refresh all player ESP based on their individual toggles
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local role = GetRole(p)
+                local shouldShow = value and 
+                                 ((role == "Killer" and HEX.ESP.ShowKillers) or 
+                                  (role == "Survivor" and HEX.ESP.ShowSurvivors))
+                
+                local h = p.Character:FindFirstChild("RxmmyESP")
+                if h then
+                    h.Enabled = shouldShow
+                elseif shouldShow then
+                    ApplyHighlight(p.Character, HEX.ESP.Players[role].Color)
+                end
+            end
+        end
+        
         Obsidian:Notify({
             Title = "HEXWARE",
             Description = value and "ESP enabled" or "ESP disabled",
