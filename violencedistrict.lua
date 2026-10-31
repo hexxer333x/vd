@@ -31,6 +31,7 @@ end)
 getgenv().HEX = getgenv().HEX or {
     ESP = {
         Enabled = false,
+        ShowObjects = true,
         ShowKillers = true,
         ShowSurvivors = true,
         Players = {
@@ -69,9 +70,9 @@ local function ApplyHighlight(obj, color)
     h.Name = "RxmmyESP"
     h.Adornee = obj
     h.FillColor = color
-    h.OutlineColor = Color3.new(1, 1, 1)
-    h.FillTransparency = 0.7
-    h.OutlineTransparency = 0.2
+    h.OutlineColor = color
+    h.FillTransparency = 0.5
+    h.OutlineTransparency = 0
     h.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
     h.Enabled = HEX.ESP.Enabled
     h.Parent = obj
@@ -118,7 +119,7 @@ end
 local function SetupObjectESP()
     task.spawn(function()
         while true do
-            if HEX.ESP.Enabled then
+            if HEX.ESP.Enabled and HEX.ESP.ShowObjects then
                 for _, obj in ipairs(Workspace:GetDescendants()) do
                     for _, data in ipairs(HEX.ESP.Objects) do
                         if obj.Name == data.Name and not obj:FindFirstChild("RxmmyESP") then 
@@ -439,7 +440,7 @@ do
     ESPBox:AddToggle("ESPMaster", {
         Text = "Enable ESP",
         Default = false,
-        Tooltip = "Toggle ESP highlights for players and objects"
+        Tooltip = "Master toggle - enables all ESP types"
     }):OnChanged(function(value)
         ToggleESP(value)
         Obsidian:Notify({
@@ -450,23 +451,26 @@ do
     end)
     
     ESPBox:AddDivider()
-    ESPBox:AddLabel("Player ESP")
     
     ESPBox:AddToggle("ShowKillers", {
-        Text = "Show Killers",
+        Text = "Killer ESP",
         Default = true,
         Tooltip = "Highlight killer players"
     }):OnChanged(function(value)
         HEX.ESP.ShowKillers = value
-        -- Refresh all player ESP
+        -- Just update visibility, no destroy/recreate
         for _, p in ipairs(Players:GetPlayers()) do
-            if p.Character then
+            if p ~= LocalPlayer and p.Character then
                 local h = p.Character:FindFirstChild("RxmmyESP")
-                if h then h:Destroy() end
+                local role = GetRole(p)
+                if role == "Killer" then
+                    if h then
+                        h.Enabled = value and HEX.ESP.Enabled
+                    elseif value and HEX.ESP.Enabled then
+                        ApplyHighlight(p.Character, HEX.ESP.Players.Killer.Color)
+                    end
+                end
             end
-        end
-        for _, p in ipairs(Players:GetPlayers()) do
-            SetupPlayerESP(p)
         end
     end)
     
@@ -476,23 +480,40 @@ do
         Transparency = 0
     }):OnChanged(function(value)
         HEX.ESP.Players.Killer.Color = value
+        -- Update all killer highlights in real-time
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local role = GetRole(p)
+                if role == "Killer" then
+                    local h = p.Character:FindFirstChild("RxmmyESP")
+                    if h then
+                        h.FillColor = value
+                        h.OutlineColor = value
+                    end
+                end
+            end
+        end
     end)
     
     ESPBox:AddToggle("ShowSurvivors", {
-        Text = "Show Survivors",
+        Text = "Survivor ESP",
         Default = true,
         Tooltip = "Highlight survivor players"
     }):OnChanged(function(value)
         HEX.ESP.ShowSurvivors = value
-        -- Refresh all player ESP
+        -- Just update visibility, no destroy/recreate
         for _, p in ipairs(Players:GetPlayers()) do
-            if p.Character then
+            if p ~= LocalPlayer and p.Character then
                 local h = p.Character:FindFirstChild("RxmmyESP")
-                if h then h:Destroy() end
+                local role = GetRole(p)
+                if role == "Survivor" then
+                    if h then
+                        h.Enabled = value and HEX.ESP.Enabled
+                    elseif value and HEX.ESP.Enabled then
+                        ApplyHighlight(p.Character, HEX.ESP.Players.Survivor.Color)
+                    end
+                end
             end
-        end
-        for _, p in ipairs(Players:GetPlayers()) do
-            SetupPlayerESP(p)
         end
     end)
     
@@ -502,9 +523,37 @@ do
         Transparency = 0
     }):OnChanged(function(value)
         HEX.ESP.Players.Survivor.Color = value
+        -- Update all survivor highlights in real-time
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character then
+                local role = GetRole(p)
+                if role == "Survivor" then
+                    local h = p.Character:FindFirstChild("RxmmyESP")
+                    if h then
+                        h.FillColor = value
+                        h.OutlineColor = value
+                    end
+                end
+            end
+        end
     end)
     
-    local ObjectBox = VisualTab:AddRightGroupbox("Object ESP")
+    ESPBox:AddToggle("ShowObjects", {
+        Text = "Object ESP",
+        Default = true,
+        Tooltip = "Highlight objects (generators, gates, etc)"
+    }):OnChanged(function(value)
+        HEX.ESP.ShowObjects = value
+        -- Refresh all object ESP
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            local h = obj:FindFirstChild("RxmmyESP")
+            if h and obj ~= LocalPlayer.Character and not obj:IsA("Model") then
+                h.Enabled = value and HEX.ESP.Enabled
+            end
+        end
+    end)
+    
+    local ObjectBox = VisualTab:AddRightGroupbox("Object Colors")
     
     ObjectBox:AddLabel("Generator Color:"):AddColorPicker("GeneratorColor", {
         Default = Color3.fromRGB(210, 87, 255),
@@ -513,6 +562,16 @@ do
     }):OnChanged(function(value)
         for _, obj in ipairs(HEX.ESP.Objects) do
             if obj.Name == "Generator" then obj.Color = value end
+        end
+        -- Update existing highlights
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj.Name == "Generator" then
+                local h = obj:FindFirstChild("RxmmyESP")
+                if h then
+                    h.FillColor = value
+                    h.OutlineColor = value
+                end
+            end
         end
     end)
     
@@ -524,6 +583,16 @@ do
         for _, obj in ipairs(HEX.ESP.Objects) do
             if obj.Name == "Gate" then obj.Color = value end
         end
+        -- Update existing highlights
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj.Name == "Gate" then
+                local h = obj:FindFirstChild("RxmmyESP")
+                if h then
+                    h.FillColor = value
+                    h.OutlineColor = value
+                end
+            end
+        end
     end)
     
     ObjectBox:AddLabel("Pallet Color:"):AddColorPicker("PalletColor", {
@@ -533,6 +602,16 @@ do
     }):OnChanged(function(value)
         for _, obj in ipairs(HEX.ESP.Objects) do
             if obj.Name == "Palletwrong" then obj.Color = value end
+        end
+        -- Update existing highlights
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj.Name == "Palletwrong" then
+                local h = obj:FindFirstChild("RxmmyESP")
+                if h then
+                    h.FillColor = value
+                    h.OutlineColor = value
+                end
+            end
         end
     end)
     
@@ -544,10 +623,20 @@ do
         for _, obj in ipairs(HEX.ESP.Objects) do
             if obj.Name == "Hook" then obj.Color = value end
         end
+        -- Update existing highlights
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            if obj.Name == "Hook" then
+                local h = obj:FindFirstChild("RxmmyESP")
+                if h then
+                    h.FillColor = value
+                    h.OutlineColor = value
+                end
+            end
+        end
     end)
 end
 
--- Misc Tab
+-- Misc Tab  
 do
     local MiscBox = MiscTab:AddLeftGroupbox("UI Settings")
     
@@ -565,41 +654,24 @@ do
         NoUI = true,
         Text = "Menu keybind"
     })
-    
-    MiscBox:AddDivider()
-    
-    MiscBox:AddLabel("Background transparency"):AddSlider("BackgroundTransparency", {
-        Text = "Transparency",
-        Default = 0,
-        Min = 0,
-        Max = 1,
-        Rounding = 2,
-        Compact = true
-    })
-    
-    MiscBox:AddLabel("Disable UI animations"):AddToggle("DisableAnimations", {
-        Text = "Disable animations",
-        Default = false
-    }):OnChanged(function(value)
-        Obsidian.UseAcrylic = not value
-    end)
 end
 
--- Theme Manager & Save Manager
+-- Initialize SaveManager and ThemeManager
 ThemeManager:SetLibrary(Obsidian)
 SaveManager:SetLibrary(Obsidian)
-
--- Set subfolder for configs
 SaveManager:SetFolder("HEXWARE/violence-district")
 
--- Build config section
+-- Add Configuration section
 SaveManager:BuildConfigSection(MiscTab)
 
--- Build theme section  
+-- Add Theme Manager section
 ThemeManager:ApplyToTab(MiscTab)
 
--- Load autoload config if exists
-SaveManager:LoadAutoloadConfig()
+-- Load autoload config
+task.spawn(function()
+    task.wait(1)
+    SaveManager:LoadAutoloadConfig()
+end)
 
 Obsidian:Notify({
     Title = "HEXWARE",
