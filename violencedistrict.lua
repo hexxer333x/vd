@@ -42,6 +42,7 @@ getgenv().HEX = getgenv().HEX or {
             {Name = "Generator", Color = Color3.fromRGB(210, 87, 255)},
             {Name = "Gate", Color = Color3.fromRGB(255, 255, 255)},
             {Name = "Palletwrong", Color = Color3.fromRGB(74, 255, 181)},
+            {Name = "Pallet", Color = Color3.fromRGB(74, 255, 181)},
             {Name = "Window", Color = Color3.fromRGB(74, 255, 181)},
             {Name = "Hook", Color = Color3.fromRGB(132, 255, 169)}
         }
@@ -477,7 +478,7 @@ do
     ESPBox:AddLabel("Killer Color:"):AddColorPicker("KillerColor", {
         Default = HEX.ESP.Players.Killer.Color,
         Title = "Killer ESP Color",
-        Transparency = 0,
+        Transparency = nil,
         Changed = function(value)
             HEX.ESP.Players.Killer.Color = value
             -- Update all killer highlights in real-time
@@ -602,14 +603,16 @@ do
     ObjectBox:AddLabel("Pallet Color:"):AddColorPicker("PalletColor", {
         Default = Color3.fromRGB(74, 255, 181),
         Title = "Pallet ESP Color",
-        Transparency = 0,
+        Transparency = nil,
         Changed = function(value)
             for _, obj in ipairs(HEX.ESP.Objects) do
-                if obj.Name == "Palletwrong" then obj.Color = value end
+                if obj.Name == "Palletwrong" or obj.Name == "Pallet" then 
+                    obj.Color = value 
+                end
             end
             -- Update existing highlights
             for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj.Name == "Palletwrong" then
+                if obj.Name == "Palletwrong" or obj.Name == "Pallet" then
                     local h = obj:FindFirstChild("RxmmyESP")
                     if h then
                         h.FillColor = value
