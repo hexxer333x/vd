@@ -43,11 +43,11 @@ getgenv().HEX = getgenv().HEX or {
             Survivor = {Color = Color3.fromRGB(64, 224, 255)}
         },
         Objects = {
-            {Name = "Generator", Color = Color3.fromRGB(210, 87, 255)},
-            {Name = "Gate", Color = Color3.fromRGB(255, 255, 255)},
-            {Name = "Palletwrong", Color = Color3.fromRGB(74, 255, 181)},
-            {Name = "Window", Color = Color3.fromRGB(74, 255, 181)},
-            {Name = "Hook", Color = Color3.fromRGB(132, 255, 169)}
+            Generator = {Enabled = true, Color = Color3.fromRGB(210, 87, 255)},
+            Gate = {Enabled = true, Color = Color3.fromRGB(255, 255, 255)},
+            Pallet = {Enabled = true, Color = Color3.fromRGB(74, 255, 181)},
+            Window = {Enabled = true, Color = Color3.fromRGB(74, 255, 181)},
+            Hook = {Enabled = true, Color = Color3.fromRGB(132, 255, 169)}
         }
     },
     AutoSkillCheck = {
@@ -122,10 +122,20 @@ local function SetupObjectESP()
         while true do
             if HEX.ESP.Enabled and HEX.ESP.ShowObjects then
                 for _, obj in ipairs(Workspace:GetDescendants()) do
-                    for _, data in ipairs(HEX.ESP.Objects) do
-                        -- Only EXACT name match - no partial searches
-                        if obj.Name == data.Name and not obj:FindFirstChild("RxmmyESP") then 
-                            ApplyHighlight(obj, data.Color)
+                    -- Check each object type
+                    for objName, objData in pairs(HEX.ESP.Objects) do
+                        local matches = false
+                        
+                        -- Special case: Pallet matches anything with "pallet" in the name (case-insensitive)
+                        if objName == "Pallet" then
+                            matches = obj.Name:lower():find("pallet") ~= nil
+                        else
+                            -- Exact match for other objects
+                            matches = obj.Name == objName
+                        end
+                        
+                        if matches and objData.Enabled and not obj:FindFirstChild("RxmmyESP") then 
+                            ApplyHighlight(obj, objData.Color)
                         end
                     end
                 end
@@ -214,7 +224,7 @@ Players.PlayerAdded:Connect(SetupPlayerESP)
 SetupObjectESP()
 
 ----------------------------------------------------------------
--- OMNI SPRINT (NO SLOWDOWN)
+-- OMNI SPRINT (CFRAME-BASED MOVEMENT)
 ----------------------------------------------------------------
 local function setupOmniSprint()
     if HEX.Movement.OmniSprint then
@@ -223,12 +233,18 @@ local function setupOmniSprint()
         end
         
         HEX.Movement.OmniConnection = RunService.Heartbeat:Connect(function()
-            if not HEX.Movement.OmniSprint or not Humanoid then return end
+            if not HEX.Movement.OmniSprint or not Character or not RootPart or not Humanoid then return end
             
-            -- Remove movement penalty - keep speed constant in all directions
-            if Humanoid.MoveDirection.Magnitude > 0 then
-                local moveDir = Humanoid.MoveDirection
-                Humanoid.WalkSpeed = 16 -- Keep at default, no slowdown
+            -- Get current movement input
+            local moveDir = Humanoid.MoveDirection
+            if moveDir.Magnitude > 0 then
+                -- Calculate desired velocity based on base speed (16 studs/sec)
+                local baseSpeed = 16
+                local velocity = moveDir * baseSpeed
+                
+                -- Apply CFrame movement to maintain consistent speed in all directions
+                local delta = velocity * RunService.Heartbeat:Wait()
+                RootPart.CFrame = RootPart.CFrame + delta
             end
         end)
     else
@@ -434,11 +450,60 @@ do
         Tooltip = "Highlight objects (generators, gates, etc)"
     }):OnChanged(function(value)
         HEX.ESP.ShowObjects = value
-        -- Refresh all object ESP
+        -- Refresh all object ESP visibility
         for _, obj in ipairs(Workspace:GetDescendants()) do
             local h = obj:FindFirstChild("RxmmyESP")
-            if h and obj ~= LocalPlayer.Character and not obj:IsA("Model") then
-                h.Enabled = value and HEX.ESP.Enabled
+            if h and obj ~= LocalPlayer.Character then
+                -- Check if this is an object highlight (not player)
+                local isObject = false
+                for objName in pairs(HEX.ESP.Objects) do
+                    if obj.Name == objName then
+                        isObject = true
+                        break
+                    end
+                end
+                if isObject then
+                    h.Enabled = value and HEX.ESP.Enabled
+                end
+            end
+        end
+    end)
+    
+    ESPBox:AddDropdown("ObjectSelection", {
+        Text = "Select Objects",
+        Default = {"Generator", "Gate", "Pallet", "Window", "Hook"},
+        Values = {"Generator", "Gate", "Pallet", "Window", "Hook"},
+        Multi = true,
+        Tooltip = "Choose which objects to highlight"
+    }):OnChanged(function(value)
+        -- Update enabled state for each object
+        HEX.ESP.Objects.Generator.Enabled = value.Generator or false
+        HEX.ESP.Objects.Gate.Enabled = value.Gate or false
+        HEX.ESP.Objects.Pallet.Enabled = value.Pallet or false
+        HEX.ESP.Objects.Window.Enabled = value.Window or false
+        HEX.ESP.Objects.Hook.Enabled = value.Hook or false
+        
+        -- Refresh all object highlights
+        for _, obj in ipairs(Workspace:GetDescendants()) do
+            for objName, objData in pairs(HEX.ESP.Objects) do
+                local matches = false
+                
+                -- Special case: Pallet matches anything with "pallet" in the name (case-insensitive)
+                if objName == "Pallet" then
+                    matches = obj.Name:lower():find("pallet") ~= nil
+                else
+                    -- Exact match for other objects
+                    matches = obj.Name == objName
+                end
+                
+                if matches then
+                    local h = obj:FindFirstChild("RxmmyESP")
+                    if h then
+                        h.Enabled = objData.Enabled and HEX.ESP.ShowObjects and HEX.ESP.Enabled
+                    elseif objData.Enabled and HEX.ESP.ShowObjects and HEX.ESP.Enabled then
+                        ApplyHighlight(obj, objData.Color)
+                    end
+                end
             end
         end
     end)
@@ -492,14 +557,10 @@ do
         Title = "Pallet ESP Color",
         Transparency = nil,
         Changed = function(value)
-            for _, obj in ipairs(HEX.ESP.Objects) do
-                if obj.Name == "Palletwrong" then 
-                    obj.Color = value 
-                end
-            end
-            -- Update existing highlights - only Palletwrong
+            HEX.ESP.Objects.Pallet.Color = value
+            -- Update existing highlights for any object with "pallet" in name
             for _, obj in ipairs(Workspace:GetDescendants()) do
-                if obj.Name == "Palletwrong" then
+                if obj.Name:lower():find("pallet") then
                     local h = obj:FindFirstChild("RxmmyESP")
                     if h then
                         h.FillColor = value
